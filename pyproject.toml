@@ -1,0 +1,8 @@
+[project]
+name = "cyber-clone-mvp"
+version = "0.1.0"
+description = "Local MVP for voice and chat style clone prototyping."
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

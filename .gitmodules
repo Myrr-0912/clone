@@ -1,0 +1,3 @@
+[submodule "weflow-src"]
+	path = weflow-src
+	url = https://github.com/hicccc77/WeFlow.git
