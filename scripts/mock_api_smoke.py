@@ -12,7 +12,7 @@ from urllib import error, request
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC_ROOT = ROOT / "src"
+SRC_ROOT = ROOT / "backend"
 SAMPLE_WAV_DATA_URL = "data:audio/wav;base64,UklGRg=="
 
 
@@ -135,7 +135,7 @@ def main() -> None:
     parser.add_argument(
         "--start-server",
         action="store_true",
-        help="Launch cyberclone.web with local/mock backends for this smoke run.",
+        help="Launch app.web with local/mock backends for this smoke run.",
     )
     args = parser.parse_args()
 
@@ -172,7 +172,7 @@ def _start_server(host: str, port: int) -> subprocess.Popen[str]:
     env["VOICE_TRAINING_BACKEND"] = "mock"
     env["VOICE_TTS_BACKEND"] = "mock"
     return subprocess.Popen(
-        [sys.executable, "-m", "cyberclone.web", "--host", host, "--port", str(port)],
+        [sys.executable, "-m", "app.web", "--host", host, "--port", str(port)],
         cwd=str(ROOT),
         env=env,
         stdout=subprocess.PIPE,

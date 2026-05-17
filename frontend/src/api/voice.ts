@@ -12,7 +12,7 @@ export interface VoiceSamplesResponse {
 }
 
 export function getVoiceStatus(cloneId: string): Promise<VoiceStatusResponse> {
-  return get<VoiceStatusResponse>(`/api/clones/${encodeURIComponent(cloneId)}/voice/status`);
+  return get<VoiceStatusResponse>(`/api/v1/clones/${encodeURIComponent(cloneId)}/voice/status`);
 }
 
 export function uploadVoiceSamples(
@@ -20,11 +20,11 @@ export function uploadVoiceSamples(
   voiceFiles: UploadedFile[]
 ): Promise<VoiceSamplesResponse> {
   return post<VoiceSamplesResponse>(
-    `/api/clones/${encodeURIComponent(cloneId)}/voice/samples`,
+    `/api/v1/clones/${encodeURIComponent(cloneId)}/voice/samples`,
     { voiceFiles }
   );
 }
 
 export function trainVoiceModel(cloneId: string): Promise<VoiceStatusResponse> {
-  return post<VoiceStatusResponse>(`/api/clones/${encodeURIComponent(cloneId)}/voice/train`);
+  return post<VoiceStatusResponse>(`/api/v1/clones/${encodeURIComponent(cloneId)}/voice/train`);
 }

@@ -11,7 +11,7 @@ export interface SpeakResponse {
 }
 
 export function sendChatMessage(cloneId: string, message: string): Promise<ChatResponse> {
-  return post<ChatResponse>(`/api/clones/${encodeURIComponent(cloneId)}/chat`, { message });
+  return post<ChatResponse>(`/api/v1/clones/${encodeURIComponent(cloneId)}/chat`, { message });
 }
 
 export interface SpeakOptions {
@@ -22,5 +22,5 @@ export interface SpeakOptions {
 }
 
 export function synthesizeSpeech(cloneId: string, options: SpeakOptions): Promise<SpeakResponse> {
-  return post<SpeakResponse>(`/api/clones/${encodeURIComponent(cloneId)}/speak`, options);
+  return post<SpeakResponse>(`/api/v1/clones/${encodeURIComponent(cloneId)}/speak`, options);
 }

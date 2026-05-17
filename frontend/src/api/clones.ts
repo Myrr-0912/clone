@@ -20,28 +20,28 @@ export interface CloneCreatePayload {
 }
 
 export function listClones(): Promise<CloneListResponse> {
-  return get<CloneListResponse>("/api/clones");
+  return get<CloneListResponse>("/api/v1/clones");
 }
 
 export function getClone(cloneId: string): Promise<CloneResponse> {
-  return get<CloneResponse>(`/api/clones/${encodeURIComponent(cloneId)}`);
+  return get<CloneResponse>(`/api/v1/clones/${encodeURIComponent(cloneId)}`);
 }
 
 export function createClone(payload: CloneCreatePayload): Promise<CloneResponse> {
-  return post<CloneResponse>("/api/clones", payload);
+  return post<CloneResponse>("/api/v1/clones", payload);
 }
 
 export function updateClone(
   cloneId: string,
   payload: Partial<CloneCreatePayload>
 ): Promise<CloneResponse> {
-  return put<CloneResponse>(`/api/clones/${encodeURIComponent(cloneId)}`, payload);
+  return put<CloneResponse>(`/api/v1/clones/${encodeURIComponent(cloneId)}`, payload);
 }
 
 export function renameClone(cloneId: string, targetName: string): Promise<CloneResponse> {
-  return put<CloneResponse>(`/api/clones/${encodeURIComponent(cloneId)}`, { targetName });
+  return put<CloneResponse>(`/api/v1/clones/${encodeURIComponent(cloneId)}`, { targetName });
 }
 
 export function deleteClone(cloneId: string): Promise<{ ok: boolean; cloneId: string }> {
-  return del<{ ok: boolean; cloneId: string }>(`/api/clones/${encodeURIComponent(cloneId)}`);
+  return del<{ ok: boolean; cloneId: string }>(`/api/v1/clones/${encodeURIComponent(cloneId)}`);
 }

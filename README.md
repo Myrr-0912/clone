@@ -1,64 +1,98 @@
 # Cyber Clone Lab
 
 本项目是「上传声音文件 + 上传聊天记录 → 生成可聊天的赛博克隆人」的本地 MVP。从 0.2 起，
-后端拆分为 **FastAPI JSON 服务**，前端拆分为独立的 **Vue 3 + Vite + TypeScript SPA**，
-两者通过 `/api/*` 路由通信，开发期由 Vite 反代避免跨域，生产期由 FastAPI 直接托管打包后的
+项目按 `backend/` + `frontend/` 物理分离的工程结构组织：
+
+- **`backend/`** —— FastAPI JSON 服务，目录布局参考 RCIG 项目（`backend/app/{api/v1, core, models, schemas, services}`）。
+- **`frontend/`** —— Vue 3 + Vite + TypeScript SPA，调用 `/api/v1/*` 与后端通信。
+
+两边通过 `/api/v1/*` 路由对接：开发期 Vite 反代消除跨域；生产期 FastAPI 直接托管打包后的
 `frontend/dist`。
 
 ## 技术栈
 
 | 层 | 选型 | 说明 |
 | --- | --- | --- |
-| 后端 HTTP | **FastAPI** + Uvicorn | 16 条 JSON API，session 通过 `cyberclone_session` HttpOnly Cookie |
+| 后端 HTTP | **FastAPI** + Uvicorn | 16 条 JSON API（统一前缀 `/api/v1`），session 通过 `cyberclone_session` HttpOnly Cookie |
+| 后端配置 | pydantic-settings | `backend/app/config.py` 单例 `settings` 读取项目根 `.env`，前缀 `CYBERCLONE_` |
 | 后端数据层 | 文件存储 + 本地向量检索 | 每个用户 / 每个克隆人独立目录 `data/users/{user_id}/clones/{clone_id}/` |
 | 文本画像 | 本地规则 fallback + 可选 DeepSeek LLM | `TEXT_TRAINING_BACKEND` 控制；缺 key 自动降级 |
 | 文本检索 | 关键词 / 中文 n-gram 本地索引 | 写入 `vector/db.json`，无外部数据库依赖 |
 | 语音训练 / 合成 | 本地 VoxCPM HTTP bridge | `VoxCPM-local` 提供，`scripts/run_voxcpm_bridge.py` 包装为 HTTP |
 | 前端框架 | **Vue 3.4** + `<script setup>` + Pinia 2 + Vue Router 4 | 完整 SPA 路由、登录态、克隆人 CRUD、文本/语音聊天 |
-| 前端构建 | **Vite 5** + TypeScript 5 + vue-tsc | `pnpm dev` 起 5173 端口，`pnpm build` 输出到 `frontend/dist` |
+| 前端构建 | **Vite 5** + TypeScript 5 + vue-tsc | `npm run dev` 起 5173 端口，`npm run build` 输出到 `frontend/dist` |
 | 前端测试 | **Vitest** + @vue/test-utils + happy-dom | 8 个 spec、26 个测试 |
 | 后端测试 | unittest + fastapi.testclient.TestClient | 118 个测试，覆盖领域逻辑与 API |
 
 ## 目录结构
 
 ```
-src/cyberclone/          # 领域逻辑 + FastAPI 适配层
-  api/
-    main.py              # FastAPI 应用工厂，挂载 router 与 frontend/dist
-    paths.py             # 可在测试中 monkeypatch 的路径常量
-    deps.py              # current_user / require_admin / get_store 依赖
-    conversions.py       # 请求体解码 + profile_to_api 等纯函数
-    cookies.py           # session cookie 工具
-    routers/             # auth / clones / voice / chat / admin
-  auth.py storage.py     # 鉴权 + 多用户克隆人存储
-  chat_engine.py llm.py  # 聊天回复（DeepSeek 或本地 fallback）
-  voice.py voice_models.py voxcpm_bridge.py
-  text_training.py rag.py vector_rag.py vector_store.py
-  admin_stats.py resource_layout.py
-  web.py                 # 向后兼容入口（封装 uvicorn.run）
+backend/                          # 后端独立包（参考 RCIG 风格）
+├── pyproject.toml                # Poetry/setuptools 配置；依赖 fastapi / uvicorn / pydantic
+├── requirements.txt              # pip 安装的极简清单
+├── tests/                        # 118 个 unittest，覆盖领域逻辑与 API
+└── app/                          # 主包，import 路径 `app.*`
+    ├── __init__.py
+    ├── __main__.py               # python -m app --port 8787
+    ├── main.py                   # FastAPI 应用工厂，挂 v1 router + SPA fallback
+    ├── web.py                    # 向后兼容入口（python -m app.web）
+    ├── config.py                 # pydantic-settings 单例
+    ├── api/
+    │   └── v1/                   # 版本化 router，统一挂 /api/v1
+    │       ├── __init__.py       # 总路由器
+    │       ├── auth.py           # /api/v1/auth/{me,register,login,logout}
+    │       ├── clones.py         # /api/v1/clones CRUD
+    │       ├── voice.py          # /api/v1/clones/{id}/voice/{status,samples,train}
+    │       ├── chat.py           # /api/v1/clones/{id}/{chat,speak}
+    │       └── admin.py          # /api/v1/admin/vector-dbs
+    ├── core/                     # 跨切面：path 常量 / FastAPI 依赖 / cookies / security
+    │   ├── paths.py
+    │   ├── deps.py
+    │   ├── cookies.py
+    │   └── security.py           # 密码哈希 + session 存储（旧 auth.py）
+    ├── models/                   # 领域 dataclass
+    │   └── clone.py              # CloneProfile / ChatReply / VoiceTrainingStatus ...
+    ├── schemas/                  # 请求 / 响应解码
+    │   └── conversions.py        # decode_upload_payload / profile_to_api ...
+    ├── services/                 # 业务逻辑
+    │   ├── storage.py            # CloneStore（多用户隔离）
+    │   ├── chat_engine.py
+    │   ├── llm.py
+    │   ├── persona.py
+    │   ├── chatlog.py
+    │   ├── voice.py              # VoxCPM / mock / http 适配
+    │   ├── voice_models.py
+    │   ├── voxcpm_bridge.py
+    │   ├── text_training.py
+    │   ├── rag.py
+    │   ├── vector_rag.py
+    │   ├── vector_store.py
+    │   ├── admin_stats.py
+    │   ├── resource_layout.py
+    │   └── weflow.py
+    └── utils/
 
-frontend/                # Vue 3 SPA
-  index.html  vite.config.ts  vitest.config.ts  package.json
-  src/
-    main.ts  App.vue  env.d.ts  types.ts
-    router/index.ts          # vue-router + 全局守卫
-    stores/auth.ts clones.ts # Pinia
-    api/                     # client / auth / clones / voice / chat / admin
-    composables/             # useFileReader / useVoiceRecorder
-    views/                   # Login / Register / Workspace / Admin / NotFound
-    components/              # MyClonesPanel / ProfilePanel / ChatPanel ...
-    assets/styles.css
-  tests/                     # vitest spec
+frontend/                         # Vue 3 SPA
+├── index.html  vite.config.ts  vitest.config.ts  package.json
+├── src/
+│   ├── main.ts  App.vue  env.d.ts  types.ts
+│   ├── router/index.ts           # vue-router + 全局守卫
+│   ├── stores/                   # Pinia（auth / clones）
+│   ├── api/                      # client / auth / clones / voice / chat / admin
+│   ├── composables/              # useFileReader / useVoiceRecorder
+│   ├── views/                    # Login / Register / Workspace / Admin / NotFound
+│   ├── components/               # MyClonesPanel / ProfilePanel / ChatPanel ...
+│   └── assets/styles.css
+└── tests/                        # vitest spec
 
-data/                    # 本地数据；运行时自动创建
-  auth/                  # users.json / sessions.json
-  users/{user_id}/clones/{clone_id}/
-                         # raw/ profile/ voice/ vector/ status.json
+data/                             # 本地数据，运行时自动创建
+├── auth/                         # users.json / sessions.json
+└── users/{user_id}/clones/{clone_id}/
+                                  # raw/ profile/ voice/ vector/ status.json
 
-VoxCPM-local/            # VoxCPM 原始 Gradio 服务与权重脚本（详见下文）
-scripts/                 # CLI 工具：mock smoke、VoxCPM bridge、模型控制
-docs/                    # 设计文档 / 子需求 spec
-tests/                   # Python 测试套件
+VoxCPM-local/                     # VoxCPM 原始 Gradio 服务与权重脚本
+scripts/                          # 项目级 CLI：mock smoke、VoxCPM bridge、模型控制
+docs/                             # 设计文档 / 子需求 spec
 ```
 
 ## 一、安装依赖
@@ -68,9 +102,10 @@ tests/                   # Python 测试套件
 需要 Python 3.10+。
 
 ```powershell
+cd backend
 python -m pip install -e .
-# 或者只装运行所需的依赖（不安装本项目本身）
-python -m pip install fastapi "uvicorn[standard]" pydantic
+# 或者只装运行所需的依赖：
+python -m pip install -r requirements.txt
 ```
 
 ### 2. Node（前端）
@@ -88,15 +123,17 @@ npm install
 ### 后端
 
 ```powershell
-$env:PYTHONPATH="D:\vscode\clone\src"
-python -m unittest discover -s tests -v
+$env:PYTHONPATH="D:\vscode\clone\backend"
+python -m unittest discover -s backend\tests -v
 ```
+
+或直接 `cd backend && pytest -q`（用 `backend/pyproject.toml` 的配置）。
 
 若机器没有 `python`，可以用 Codex 自带运行时：
 
 ```powershell
-$env:PYTHONPATH="D:\vscode\clone\src"
-& "C:\Users\myrr\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" -m unittest discover -s tests -v
+$env:PYTHONPATH="D:\vscode\clone\backend"
+& "C:\Users\myrr\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" -m unittest discover -s backend\tests -v
 ```
 
 ### 前端
@@ -110,15 +147,15 @@ npm run build       # vue-tsc 类型检查 + Vite 打包
 
 ## 三、本地开发模式（前后端分离）
 
-两个终端各跑一个进程，前端通过 Vite 反代 `/api/*` 调后端，**无 CORS 问题**。
+两个终端各跑一个进程，前端通过 Vite 反代 `/api/v1/*` 调后端，**无 CORS 问题**。
 
 终端 A —— 启动后端：
 
 ```powershell
-$env:PYTHONPATH="D:\vscode\clone\src"
+$env:PYTHONPATH="D:\vscode\clone\backend"
 $env:NO_PROXY="127.0.0.1,localhost,::1"
 $env:no_proxy="127.0.0.1,localhost,::1"
-python -m cyberclone.api --port 8787
+python -m app --port 8787
 ```
 
 终端 B —— 启动前端 dev server：
@@ -134,8 +171,8 @@ npm run dev
 http://127.0.0.1:5173
 ```
 
-第一次进入会被路由守卫导向 `/login`。**默认管理员账号** 是 `admin / admin`，
-可登录后查看 `/admin` 资源统计。**普通用户** 通过 `/register` 注册即可使用工作台。
+第一次进入会被路由守卫导向 `/login`。**默认管理员账号** 是 `admin / admin`，可登录后查看
+`/admin` 资源统计。**普通用户** 通过 `/register` 注册即可使用工作台。
 
 ## 四、生产 / 一体化运行
 
@@ -144,16 +181,16 @@ cd frontend
 npm run build     # 产物到 frontend/dist
 
 cd ..
-$env:PYTHONPATH="D:\vscode\clone\src"
-python -m cyberclone.api --port 8787
-# 或保留旧入口：python -m cyberclone.web --port 8787
+$env:PYTHONPATH="D:\vscode\clone\backend"
+python -m app --port 8787
+# 或保留旧入口：python -m app.web --port 8787
 ```
 
 FastAPI 在生产模式下会把 `frontend/dist` 挂到 `/`：
 
 - `/` 与未命中 `/api/*` 的所有 GET 请求都 fallback 到 `index.html`，由 vue-router 处理
 - `/assets/*` 由 FastAPI 直接送回 Vite 打包出的静态文件
-- `/api/*` 仍然是 JSON API
+- `/api/v1/*` 是业务 API，`/api/health` 是健康检查
 
 打开：
 
@@ -163,10 +200,10 @@ http://127.0.0.1:8787
 
 ## 五、安装与部署 VoxCPM 语音模型
 
-VoxCPM 适合接在 `src/cyberclone/voice.py` 后面，负责声音克隆训练和 TTS 推理。本仓库的 `VoxCPM-local`
-目录保留了 VoxCPM 的 Gradio 服务与模型验证脚本；为了对接到 FastAPI，我们额外提供一个轻量 HTTP bridge
-（`src/cyberclone/voxcpm_bridge.py` + `scripts/run_voxcpm_bridge.py`），把 VoxCPM 的 reference voice
-就绪状态映射成 `POST /train`，把本地推理映射成 `POST /speak`。
+VoxCPM 适合接在 `backend/app/services/voice.py` 后面，负责声音克隆训练和 TTS 推理。本仓库的
+`VoxCPM-local` 目录保留了 VoxCPM 的 Gradio 服务与模型验证脚本；为了对接到 FastAPI，仓库提供
+一个轻量 HTTP bridge（`backend/app/services/voxcpm_bridge.py` + `scripts/run_voxcpm_bridge.py`），
+把 VoxCPM 的 reference voice 就绪状态映射成 `POST /train`，把本地推理映射成 `POST /speak`。
 
 ### 1. 准备 VoxCPM 运行环境
 
@@ -190,7 +227,7 @@ VOXCPM_BRIDGE_DEVICE=auto             # cpu / cuda:0 / cuda:1
 ### 2. 启动 VoxCPM HTTP bridge
 
 ```powershell
-$env:PYTHONPATH="D:\vscode\clone\src"
+$env:PYTHONPATH="D:\vscode\clone\backend"
 python scripts\run_voxcpm_bridge.py
 # 默认监听 127.0.0.1:8810；日志写入 logs/voxcpm-bridge.log
 ```
@@ -228,12 +265,15 @@ VOICE_TTS_INCLUDE_REFERENCE_AUDIO=true
 不依赖真实 LLM、VoxCPM 或外部语音 API key 时，可以用 mock 后端跑完整流程：
 
 ```powershell
-$env:PYTHONPATH="D:\vscode\clone\src"
+$env:PYTHONPATH="D:\vscode\clone\backend"
 $env:LLM_BACKEND="local"
 $env:VOICE_TRAINING_BACKEND="mock"
 $env:VOICE_TTS_BACKEND="mock"
-python -m cyberclone.api --port 8787
+python -m app.web --port 8787
 ```
+
+> 旧入口 `python -m app.web --port 8787` 与 `python -m app --port 8787` 等价；保留这条命令
+> 是为了让历史脚本和文档继续可用。
 
 在另一个终端启动前端 `npm run dev` 后，浏览器打开 `http://127.0.0.1:5173`：
 
@@ -273,6 +313,7 @@ python -m cyberclone.api --port 8787
 - `VOICE_TTS_INCLUDE_REFERENCE_AUDIO=true` / `VOICE_TRAINING_INCLUDE_AUDIO=true`：
   远端 bridge 无法读取本机 `referenceAudioPath` / `samplePaths` 时，把样本以 data URL 一并发送
 - `CYBERCLONE_DEV_CORS=1`：开发期手动开启 CORS（默认关，Vite 反代已规避跨域）
+- `CYBERCLONE_DEFAULT_ADMIN_USERNAME` / `CYBERCLONE_DEFAULT_ADMIN_PASSWORD`：覆盖默认管理员账号
 
 ## 九、下一步
 
