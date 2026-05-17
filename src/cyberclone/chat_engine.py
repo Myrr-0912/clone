@@ -27,7 +27,7 @@ class LocalCloneChatEngine:
     Keeping it deterministic makes the MVP testable before API keys are added.
     """
 
-    def reply(self, profile: CloneProfile, user_text: str) -> ChatReply:
+    def reply(self, profile: CloneProfile, user_text: str, retrieved_context: str = "") -> ChatReply:
         correction = extract_text_correction(user_text)
         if correction:
             return ChatReply(

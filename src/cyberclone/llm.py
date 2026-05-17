@@ -13,7 +13,7 @@ from .persona import profile_to_system_prompt
 
 
 class ChatEngine(Protocol):
-    def reply(self, profile: CloneProfile, user_text: str) -> ChatReply:
+    def reply(self, profile: CloneProfile, user_text: str, retrieved_context: str = "") -> ChatReply:
         ...
 
 
@@ -55,11 +55,14 @@ class DeepSeekChatEngine:
         self.settings = settings
         self.transport = transport or _post_json
 
-    def reply(self, profile: CloneProfile, user_text: str) -> ChatReply:
+    def reply(self, profile: CloneProfile, user_text: str, retrieved_context: str = "") -> ChatReply:
+        system_prompt = _profile_prompt(profile)
+        if retrieved_context.strip():
+            system_prompt = f"{system_prompt}\n\n{retrieved_context.strip()}"
         payload = {
             "model": self.settings.model,
             "messages": [
-                {"role": "system", "content": _profile_prompt(profile)},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_text},
             ],
             "temperature": self.settings.temperature,

@@ -141,6 +141,52 @@ class VoiceTests(unittest.TestCase):
         self.assertEqual(payload["inferenceSteps"], 8)
         self.assertIs(payload["normalize"], True)
 
+    def test_http_synthesis_request_parameters_override_env_defaults(self):
+        calls = []
+
+        def fake_post_json(url, headers, payload, timeout):
+            calls.append((url, headers, payload, timeout))
+            return {
+                "status": "ok",
+                "audioBase64": "UklGRg==",
+                "contentType": "audio/wav",
+            }
+
+        profile = _profile()
+        profile.voice = VoiceTrainingStatus(
+            status="ready",
+            adapter="http",
+            message="voice ready",
+            sample_filename="first.wav",
+            sample_filenames=["first.wav"],
+            sample_count=1,
+            model_id="voice-model-1",
+        )
+        original_post_json = voice_module._post_json
+        voice_module._post_json = fake_post_json
+        try:
+            result = synthesize_speech(
+                profile=profile,
+                text="hello",
+                reference_audio_path=Path("D:/samples/first.wav"),
+                emotion="warm",
+                inference_steps=12,
+                cfg_value=3.4,
+                env={
+                    "VOICE_TTS_BACKEND": "http",
+                    "VOICE_TTS_URL": "http://127.0.0.1:9000/speak",
+                    "VOICE_TTS_CFG_VALUE": "2.6",
+                    "VOICE_TTS_INFERENCE_STEPS": "8",
+                },
+            )
+        finally:
+            voice_module._post_json = original_post_json
+
+        self.assertEqual(result.status, "ok")
+        payload = calls[0][2]
+        self.assertEqual(payload["cfgValue"], 3.4)
+        self.assertEqual(payload["inferenceSteps"], 12)
+
     def test_http_synthesis_surfaces_backend_error_payload(self):
         def fake_post_json(url, headers, payload, timeout):
             return {

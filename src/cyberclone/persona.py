@@ -397,6 +397,273 @@ def _extract_topics(joined: str) -> list[str]:
     return [topic for topic, _ in counter.most_common(10)]
 
 
+def profile_to_markdown(profile: CloneProfile) -> str:
+    return "\n".join(
+        [
+            f"# {profile.name}",
+            "",
+            "## Part A - Relationship Memory",
+            _relationship_memory_block(profile),
+            "",
+            "## Part B - Persona",
+            "",
+            "### Hard Rules",
+            _markdown_list(_hard_rules(profile), "只使用已提供材料，不编造私人经历。"),
+            "",
+            "### Identity",
+            _markdown_list(_identity_rules(profile), f"名字/代号：{profile.name}"),
+            "",
+            "### Speech Style",
+            _speech_style_block(profile),
+            "",
+            "### Emotional Patterns",
+            _emotional_patterns_block(profile),
+            "",
+            "### Relationship Behavior",
+            _relationship_behavior_block(profile),
+            "",
+            "### Behavior Rules",
+            _rules_to_markdown(profile.rules),
+            "",
+            "## Part C - Corrections",
+            _corrections_to_markdown(profile.corrections),
+        ]
+    )
+
+
+def profile_to_system_prompt(profile: CloneProfile) -> str:
+    corrections = "\n".join(f"- {correction}" for correction in profile.corrections) or "- none"
+    return "\n".join(
+        [
+            f"You are roleplaying as {profile.name}.",
+            "Reply in the same language as the user.",
+            "Keep the reply natural, concise, and conversational.",
+            "Use the layered profile below as constraints.",
+            "",
+            "Part A - Relationship Memory",
+            _relationship_memory_block(profile),
+            "",
+            "Part B - Persona",
+            "Hard rules",
+            _plain_list(_hard_rules(profile)),
+            "Identity",
+            _plain_list(_identity_rules(profile)),
+            "Speech style",
+            _plain_list(_speech_style_rules(profile)),
+            "Emotional patterns",
+            _plain_list(_emotional_pattern_rules(profile)),
+            "Relationship behavior",
+            _plain_list(_relationship_behavior_rules(profile)),
+            "Behavior rules",
+            _rules_to_prompt(profile.rules),
+            "",
+            "Part C - Corrections",
+            corrections,
+        ]
+    )
+
+
+def style_to_markdown(profile: CloneProfile) -> str:
+    return "\n".join(
+        [
+            "# Style",
+            "",
+            f"catchphrases: {', '.join(profile.style.catchphrases)}",
+            f"particles: {', '.join(profile.style.particles)}",
+            f"punctuation: {', '.join(profile.style.punctuation)}",
+            f"emoji_style: {', '.join(profile.style.emoji_style)}",
+            f"message_format: {', '.join(profile.style.message_format)}",
+            f"typing_habits: {', '.join(profile.style.typing_habits)}",
+            f"address_terms: {', '.join(profile.style.address_terms)}",
+            f"average_length: {profile.style.average_length:.2f}",
+            "",
+            "example_dialogues:",
+            _markdown_list(profile.style.example_dialogues, "暂无代表性示例。"),
+        ]
+    )
+
+
+def memory_to_markdown(profile: CloneProfile) -> str:
+    return "\n".join(
+        [
+            "# Memory",
+            "",
+            _relationship_memory_block(profile),
+            "",
+            "## Correction 记录",
+            _corrections_to_markdown(profile.corrections),
+        ]
+    )
+
+
+def rules_to_markdown(profile: CloneProfile) -> str:
+    return "\n".join(
+        [
+            "# Rules",
+            "",
+            "## Hard Rules",
+            _markdown_list(_hard_rules(profile), "只使用已提供材料，不编造私人经历。"),
+            "",
+            "## Identity",
+            _markdown_list(_identity_rules(profile), f"名字/代号：{profile.name}"),
+            "",
+            "## Speech Constraints",
+            _speech_style_block(profile),
+            "",
+            "## Reply Cadence",
+            _markdown_list(profile.rules.reply_cadence, "暂无稳定回复节奏。"),
+            "",
+            "## Address Terms",
+            _markdown_list(_combined_unique(profile.rules.address_terms, profile.style.address_terms), "暂无稳定称呼。"),
+            "",
+            "## Memory Grounding",
+            f"- 关键话题：{_joined(profile.memory.key_topics, '暂无稳定话题')}",
+            "- 用户提到关键话题时，优先围绕对应记忆线索回应。",
+            "- 没有足够上下文时，用目标对象语气追问，不生成确定事实。",
+            "",
+            "## Emotional Patterns",
+            _emotional_patterns_block(profile),
+            "",
+            "## Relationship Behavior",
+            _relationship_behavior_block(profile),
+            "",
+            "## Boundary Behavior",
+            _markdown_list(profile.rules.boundary_behaviors, "暂无稳定边界表达。"),
+            "",
+            "## Emotional Guardrails",
+            "- 优先贴近用户当前情绪，但避免过度承诺或强行亲密。",
+            "- 情绪表达通过语气、节奏和短句体现，不解释自己在模拟情绪。",
+            "",
+            "## User Corrections",
+            _corrections_to_markdown(profile.corrections),
+        ]
+    )
+
+
+def _relationship_memory_block(profile: CloneProfile) -> str:
+    return "\n".join(
+        [
+            f"- 关键话题：{_joined(profile.memory.key_topics, '暂无稳定话题')}",
+            f"- 摘要：{profile.memory.summary or '暂无摘要。'}",
+            "",
+            "### 关系概览",
+            _markdown_list(profile.memory.relationship_overview, "关系类型、时长、认识方式等信息待补充。"),
+            "",
+            "### 时间线",
+            _markdown_list(profile.memory.timeline, "暂无可确认时间线。"),
+            "",
+            "### 日常模式",
+            _markdown_list(profile.memory.daily_patterns, "暂无稳定日常模式。"),
+            "",
+            "### 共同经历",
+            _markdown_list(profile.memory.shared_experiences, "暂无可确认共同经历。"),
+            "",
+            "### Inside Jokes",
+            _markdown_list(profile.memory.inside_jokes, "暂无可确认 inside joke。"),
+            "",
+            "### 饮食偏好",
+            _markdown_list(profile.memory.food_preferences, "暂无可确认饮食偏好。"),
+            "",
+            "### 兴趣爱好",
+            _markdown_list(profile.memory.interests, "暂无可确认兴趣爱好。"),
+            "",
+            "### 争吵模式",
+            _markdown_list(profile.memory.conflict_patterns, "暂无可确认争吵模式。"),
+            "",
+            "### 甜蜜时刻",
+            _markdown_list(profile.memory.sweet_moments, "暂无可确认甜蜜时刻。"),
+            "",
+            "### 分手记忆",
+            _markdown_list(profile.memory.breakup_notes, "暂无可确认分手信息。"),
+        ]
+    )
+
+
+def _hard_rules(profile: CloneProfile) -> list[str]:
+    defaults = [
+        f"你是 {profile.name} 的 AI 合成的角色模拟，不是真人，也不是可替代真人的沟通渠道。",
+        "不编造原材料没有支持的私人经历。",
+        "不突然变得完美、温柔或无条件包容，除非原材料明确支持。",
+        "不主动说爱或想念，除非原材料中有大量类似表达。",
+        "遇到危险、骚扰或越界请求时，优先给出克制且安全的回应。",
+    ]
+    return _combined_unique(profile.rules.hard_rules, defaults)
+
+
+def _identity_rules(profile: CloneProfile) -> list[str]:
+    return _combined_unique(profile.rules.identity, [f"名字/代号：{profile.name}"])
+
+
+def _speech_style_rules(profile: CloneProfile) -> list[str]:
+    rules = list(profile.rules.speech_style)
+    rules.extend(
+        [
+            f"高频口头禅：{_joined(profile.style.catchphrases, '暂无稳定口头禅')}",
+            f"语气词偏好：{_joined(profile.style.particles, '暂无稳定语气词')}",
+            f"常用标点：{_joined(profile.style.punctuation, '普通')}",
+            f"emoji/表情：{_joined(profile.style.emoji_style, '暂无稳定 emoji 风格')}",
+            f"消息格式：{_joined(profile.style.message_format, '暂无稳定消息格式')}",
+            f"打字特征：{_joined(profile.style.typing_habits, '暂无稳定打字特征')}",
+            f"称呼方式：{_joined(_combined_unique(profile.rules.address_terms, profile.style.address_terms), '暂无稳定称呼')}",
+            f"平均单条长度：{profile.style.average_length:.1f} 字符",
+        ]
+    )
+    if profile.style.example_dialogues:
+        rules.append(f"示例对话：{'; '.join(profile.style.example_dialogues[:5])}")
+    return rules
+
+
+def _speech_style_block(profile: CloneProfile) -> str:
+    return _markdown_list(_speech_style_rules(profile), "暂无稳定说话风格。")
+
+
+def _emotional_pattern_rules(profile: CloneProfile) -> list[str]:
+    return _combined_unique(
+        profile.rules.emotional_patterns,
+        profile.rules.attachment_style,
+        profile.rules.love_language,
+        [f"容易被惹生气：{item}" for item in profile.rules.anger_triggers],
+        [f"会开心的触发点：{item}" for item in profile.rules.happy_triggers],
+        [f"敏感话题：{item}" for item in profile.rules.sensitive_topics],
+    )
+
+
+def _emotional_patterns_block(profile: CloneProfile) -> str:
+    return _markdown_list(_emotional_pattern_rules(profile), "暂无稳定情绪模式。")
+
+
+def _relationship_behavior_rules(profile: CloneProfile) -> list[str]:
+    return _combined_unique(
+        profile.rules.relationship_behaviors,
+        profile.rules.boundary_behaviors,
+        profile.memory.conflict_patterns,
+    )
+
+
+def _relationship_behavior_block(profile: CloneProfile) -> str:
+    return _markdown_list(_relationship_behavior_rules(profile), "暂无稳定关系行为。")
+
+
+def _combined_unique(*groups: list[str]) -> list[str]:
+    seen = set()
+    values: list[str] = []
+    for group in groups:
+        for item in group:
+            clean = str(item).strip()
+            if clean and clean not in seen:
+                values.append(clean)
+                seen.add(clean)
+    return values
+
+
+def _joined(items: list[str], fallback: str) -> str:
+    return "、".join(item for item in items if item) or fallback
+
+
+def _plain_list(items: list[str]) -> str:
+    return "\n".join(f"- {item}" for item in items) if items else "- none"
+
+
 def _build_summary(target_name: str, texts: list[str]) -> str:
     if not texts:
         return f"{target_name} 的聊天记录里暂时没有可学习的目标消息。"

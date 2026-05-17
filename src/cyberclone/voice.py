@@ -56,6 +56,8 @@ def synthesize_speech(
     text: str,
     reference_audio_path: Path | None,
     emotion: str = "natural",
+    inference_steps: int | None = None,
+    cfg_value: float | None = None,
     env: Mapping[str, str] | None = None,
     env_path: Path | None = None,
 ) -> SpeechSynthesisResult:
@@ -92,7 +94,16 @@ def synthesize_speech(
         )
 
     if backend in {"http", "voxcpm-http", "voxcpm"}:
-        return _synthesize_http(profile, text, reference_audio_path, emotion, backend, source)
+        return _synthesize_http(
+            profile,
+            text,
+            reference_audio_path,
+            emotion,
+            backend,
+            source,
+            inference_steps=inference_steps,
+            cfg_value=cfg_value,
+        )
 
     return SpeechSynthesisResult(
         status="error",
@@ -327,6 +338,9 @@ def _synthesize_http(
     emotion: str,
     backend: str,
     env: Mapping[str, str],
+    *,
+    inference_steps: int | None = None,
+    cfg_value: float | None = None,
 ) -> SpeechSynthesisResult:
     url = env.get("VOICE_TTS_URL") or env.get("VOXCPM_TTS_URL")
     if not url:
@@ -368,13 +382,15 @@ def _synthesize_http(
     if control_prompt:
         payload["controlPrompt"] = control_prompt
 
-    cfg_value = _optional_float_env(env.get("VOICE_TTS_CFG_VALUE"))
-    if cfg_value is not None:
-        payload["cfgValue"] = cfg_value
+    effective_cfg_value = cfg_value if cfg_value is not None else _optional_float_env(env.get("VOICE_TTS_CFG_VALUE"))
+    if effective_cfg_value is not None:
+        payload["cfgValue"] = effective_cfg_value
 
-    inference_steps = _optional_int_env(env.get("VOICE_TTS_INFERENCE_STEPS"))
-    if inference_steps is not None:
-        payload["inferenceSteps"] = inference_steps
+    effective_inference_steps = (
+        inference_steps if inference_steps is not None else _optional_int_env(env.get("VOICE_TTS_INFERENCE_STEPS"))
+    )
+    if effective_inference_steps is not None:
+        payload["inferenceSteps"] = effective_inference_steps
 
     normalize = _optional_bool_env(env.get("VOICE_TTS_NORMALIZE"))
     if normalize is not None:
